@@ -1,0 +1,24 @@
+{
+  "name": "receipts",
+  "version": "0.1.0",
+  "description": "An investigator agent that answers 'why' questions over live data in Zetaris and shows the receipts for every claim.",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "conformance": "tsx conformance/hmem/runner.ts",
+    "zetaris:check": "tsx src/zetaris/check.ts",
+    "nemotron:check": "tsx src/llm/check.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
