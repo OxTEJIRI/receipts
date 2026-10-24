@@ -117,6 +117,16 @@ export class FindingsMemory {
     };
   }
 
+  // Everything remembered about an entity, newest first, superseded included
+  // so the UI can show what was corrected.
+  list(entity?: string): Recalled[] {
+    return this.hmem.store
+      .all()
+      .filter((m) => !entity || m.tags.includes(entityTag(entity)))
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .map((m) => ({ memory: m, relevance: 1, verdict: verdictOf(m), queryIds: m.provenance.refs ?? [] }));
+  }
+
   helpful(memoryId: string): void {
     this.hmem.feedback(memoryId, "helpful");
   }

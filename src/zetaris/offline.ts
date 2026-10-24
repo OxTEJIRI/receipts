@@ -23,10 +23,14 @@ const SAMPLE: Record<string, Record<string, unknown>[]> = {
 
 export async function runOffline(sql: string): Promise<QueryRun> {
   const base = { id: queryId(sql), sql: sql.trim(), at: new Date().toISOString(), ms: 1 };
-  // Prefer a fact table over the company lookup when a query joins both.
+  // Prefer fact tables over the company lookup; when a query joins several
+  // yearly tables, merge their rows on report_year like the join would.
   const named = Object.keys(SAMPLE).filter((t) => new RegExp(`\\.${t}\\b`, "i").test(sql));
-  const table = named.find((t) => t !== "company") ?? named[0];
-  if (!table) return { ...base, ok: false, columns: [], rows: [], error: "offline: no catalog table in query" };
-  const rows = SAMPLE[table];
+  const facts = named.filter((t) => t !== "company" && t !== "weather_period");
+  if (!named.length) return { ...base, ok: false, columns: [], rows: [], error: "offline: no catalog table in query" };
+  let rows = SAMPLE[facts[0] ?? named[0]];
+  for (const t of facts.slice(1)) {
+    rows = rows.map((r) => ({ ...SAMPLE[t].find((o) => o.report_year === r.report_year), ...r }));
+  }
   return { ...base, ok: true, rows, columns: Object.keys(rows[0]) };
 }

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Receipts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M7 3h18v26l-3-2-3 2-3-2-3 2-3-2-3 2z' fill='%231a1814'/><path d='M11 10h10M11 15h10M11 20h6' stroke='%23f6f3ec' stroke-width='2'/></svg>" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 3h18v26l-3-2-3 2-3-2-3 2-3-2-3 2z"/><path class="lines" d="M11 10h10M11 15h10M11 20h6"/></svg>
+      <div>
+        <h1>Receipts</h1>
+        <p class="tag">An investigator agent that explains <em>why</em>, and shows the receipts.</p>
+      </div>
+    </div>
+    <div class="status" id="status">
+      <span class="pill" id="st-zetaris"><i></i>Zetaris</span>
+      <span class="pill" id="st-model"><i></i>Nemotron</span>
+      <span class="pill" id="st-memory"><i></i>H-MEM</span>
+    </div>
+  </header>
+
+  <div class="banner" id="offline-banner" hidden>
+    Offline sample mode: rows are made-up sample values for testing the interface, not real company data.
+  </div>
+
+  <main class="grid">
+    <section class="col-left">
+      <form class="ask" id="ask">
+        <label class="sr" for="question">Question</label>
+        <div class="ask-row">
+          <select id="entity" aria-label="Company"></select>
+          <input id="question" autocomplete="off" placeholder="Why did revenue change from 2023 to 2025?" />
+          <button type="submit" id="go">Investigate</button>
+        </div>
+        <div class="examples" id="examples"></div>
+      </form>
+
+      <div class="empty" id="empty">
+        <p class="big">Ask a "why" question.</p>
+        <p>Receipts proposes competing explanations, tests each one with live SQL across SEC filings, power-plant data and weather data in Zetaris, and only keeps the claims the rows can back up.</p>
+        <ol class="how">
+          <li><b>Recall</b> settled findings from memory</li>
+          <li><b>Hypothesise</b> competing causes</li>
+          <li><b>Query</b> each one live</li>
+          <li><b>Judge</b> only from returned rows</li>
+          <li><b>Check</b> every citation and number in code</li>
+        </ol>
+      </div>
+
+      <div id="run" hidden>
+        <div class="steps" id="steps"></div>
+        <div class="hyps" id="hyps"></div>
+      </div>
+    </section>
+
+    <section class="col-right">
+      <article class="brief" id="brief" hidden>
+        <div class="brief-head">
+          <span class="kicker">The answer</span>
+          <h2 id="brief-q"></h2>
+        </div>
+        <div id="brief-body"></div>
+        <div class="gaps" id="brief-gaps"></div>
+        <dl class="stats" id="brief-stats"></dl>
+      </article>
+
+      <article class="memory">
+        <div class="mem-head">
+          <span class="kicker">Memory</span>
+          <h2>What the agent knows</h2>
+          <p class="muted">Findings are kept with the queries that proved them. Corrections never overwrite: both sides stay on the trust ledger.</p>
+        </div>
+        <div id="mem-list" class="mem-list"></div>
+      </article>
+    </section>
+  </main>
+
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer-inner">
+      <button class="close" id="drawer-close" aria-label="Close">×</button>
+      <div id="drawer-body"></div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

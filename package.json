@@ -12,6 +12,8 @@
     "test": "vitest run",
     "conformance": "tsx conformance/hmem/runner.ts",
     "ask": "tsx src/cli.ts",
+    "start": "tsx src/server.ts",
+    "start:offline": "tsx src/server.ts --offline",
     "zetaris:check": "tsx src/zetaris/check.ts",
     "nemotron:check": "tsx src/llm/check.ts",
     "typecheck": "tsc --noEmit"
