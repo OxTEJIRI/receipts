@@ -10,7 +10,8 @@ import { randomUUID } from "node:crypto";
 import type { QueryRun } from "../zetaris/client.ts";
 import type { ChatMessage } from "../llm/nemotron.ts";
 import type { FindingsMemory, Recalled, Verdict } from "../memory/findings.ts";
-import { catalogPrompt } from "./catalog.ts";
+import { catalogPrompt, cikFor } from "./catalog.ts";
+import { queryId } from "../zetaris/client.ts";
 import { checkSentence, type SentenceCheck } from "./verify.ts";
 
 export type Llm = <T>(messages: ChatMessage[]) => Promise<T>;
@@ -107,13 +108,13 @@ export async function investigate(opts: InvestigateOptions): Promise<Brief> {
     { role: "system", content: SYSTEM },
     {
       role: "user",
-      content: `Question: ${question}\nEntity: ${entity}\n\nTables:\n${catalogPrompt()}\n\n` +
+      content: `Question: ${question}\nEntity: ${entity}${cikFor(entity) ? ` (cik '${cikFor(entity)}')` : ""}\n\nTables:\n${catalogPrompt()}\n\n` +
         `Settled findings from earlier investigations (reuse instead of re-querying when one already settles a hypothesis):\n` +
         (recalled.length
           ? recalled.map((r) => `${r.memory.id} [${r.verdict}, confidence ${r.memory.confidence.toFixed(2)}] ${r.memory.content}`).join("\n")
           : "(none)") +
         `\n\nPropose ${opts.maxHypotheses ?? 4} competing hypotheses that could explain the answer, including at least one that the data might refute. ` +
-        `For each give: id (h1, h2...), statement, test (what result supports or refutes it), sql (1-3 queries), ` +
+        `For each give: id (h1, h2...), statement (one sentence), test (one sentence: what result supports or refutes it), sql (1-2 compact queries; filter by cik directly when the entity's CIK is known, otherwise join company on company_name), ` +
         `and reuse_memory_id if a settled finding already answers it (then sql may be empty).\n` +
         `JSON: {"hypotheses":[{"id":"h1","statement":"...","test":"...","sql":["SELECT ..."],"reuse_memory_id":null}]}`,
     },
@@ -137,15 +138,25 @@ export async function investigate(opts: InvestigateOptions): Promise<Brief> {
   });
   onEvent?.({ type: "planned", hypotheses: hypotheses.map(({ id, statement, fromMemory }) => ({ id, statement, fromMemory })) });
 
-  // 3 + 4. Run and judge each open hypothesis
-  for (const h of hypotheses) {
-    if (h.fromMemory) {
-      memory.helpful(h.fromMemory);
-      onEvent?.({ type: "verdict", hypothesis: h });
-      continue;
-    }
+  // 3. Run every open hypothesis's SQL. Sequential, so a query planned under
+  // two hypotheses hits the cache and runs once.
+  for (const h of hypotheses.filter((h) => h.fromMemory)) {
+    memory.helpful(h.fromMemory!);
+    onEvent?.({ type: "verdict", hypothesis: h });
+  }
+  const open = hypotheses.filter((h) => !h.fromMemory);
+  const hRunsById = new Map<string, QueryRun[]>();
+  for (const h of open) {
     const hRuns: QueryRun[] = [];
+    hRunsById.set(h.id, hRuns);
     for (const sql of h.sql) {
+      // The same SQL planned under two hypotheses runs once.
+      const cached = runs.get(queryId(sql.trim().replace(/;+\s*$/, "")));
+      if (cached?.ok) {
+        hRuns.push(cached);
+        onEvent?.({ type: "query", hypothesisId: h.id, run: cached });
+        continue;
+      }
       let r = await run(sql);
       if (!r.ok) {
         const fix = await llm<RepairReply>([
@@ -159,7 +170,11 @@ export async function investigate(opts: InvestigateOptions): Promise<Brief> {
       onEvent?.({ type: "query", hypothesisId: h.id, run: r });
     }
     h.queryIds = hRuns.map((r) => r.id);
+  }
 
+  // 4. Judge all open hypotheses in parallel; each sees only its own rows.
+  await Promise.all(open.map(async (h) => {
+    const hRuns = hRunsById.get(h.id)!;
     if (!hRuns.some((r) => r.ok && r.rows.length)) {
       h.verdict = "inconclusive";
       h.confidence = 0.1;
@@ -181,8 +196,10 @@ export async function investigate(opts: InvestigateOptions): Promise<Brief> {
       h.claim = judged.claim;
       h.queryIds = check.validCites.length ? check.validCites : h.queryIds;
     }
+  }));
 
-    // 5. Remember
+  // 5. Remember, in plan order
+  for (const h of open) {
     memory.remember({
       investigationId: id,
       entity,

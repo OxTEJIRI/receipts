@@ -80,6 +80,17 @@ export const CATALOG: Table[] = [
   },
 ];
 
+// Entities loaded into the USL model, so the planner filters by CIK directly
+// instead of spending a query looking it up.
+export const KNOWN_CIKS: Record<string, string> = {
+  "dominion energy": "0000715957",
+  "sample utility co": "0000715957",
+};
+
+export function cikFor(entity: string): string | undefined {
+  return KNOWN_CIKS[entity.trim().toLowerCase()];
+}
+
 export function catalogPrompt(tables: Table[] = CATALOG): string {
   return tables
     .map((t) =>

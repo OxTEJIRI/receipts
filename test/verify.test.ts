@@ -17,6 +17,10 @@ describe("extractNumbers", () => {
     expect(n[0].value).toBeCloseTo(14.46e9);
     expect(n[0].tolerance).toBeCloseTo(0.005e9);
   });
+
+  it("ignores digits inside query and memory IDs", () => {
+    expect(extractNumbers("see q_0fed10e232 and mem_12 for revenue_usd")).toEqual([]);
+  });
 });
 
 describe("checkSentence", () => {

@@ -13,7 +13,7 @@ export interface ChatOptions {
 }
 
 export function model(): string {
-  return process.env.NVIDIA_MODEL ?? "nvidia/llama-3.3-nemotron-super-49b-v1.5";
+  return process.env.NVIDIA_MODEL ?? "nvidia/nemotron-3-ultra-550b-a55b";
 }
 
 export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
@@ -40,10 +40,29 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Pro
   return content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
 }
 
+export function parseJsonReply<T>(text: string): T {
+  const unfenced = text.replace(/^```(?:json)?\s*|\s*```$/g, "");
+  const start = unfenced.indexOf("{");
+  const end = unfenced.lastIndexOf("}");
+  if (start < 0 || end < start) throw new Error(`no JSON object in reply: ${text.slice(0, 200)}`);
+  return JSON.parse(unfenced.slice(start, end + 1)) as T;
+}
+
+// Long replies sometimes get cut off mid-object. One retry tells the model
+// what went wrong and asks for a shorter, complete object.
 export async function chatJson<T>(messages: ChatMessage[], opts: Omit<ChatOptions, "json"> = {}): Promise<T> {
-  const text = await chat(messages, { ...opts, json: true });
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start < 0 || end < start) throw new Error(`Nemotron did not return JSON: ${text.slice(0, 200)}`);
-  return JSON.parse(text.slice(start, end + 1)) as T;
+  const text = await chat(messages, { maxTokens: 8192, ...opts, json: true });
+  try {
+    return parseJsonReply<T>(text);
+  } catch (err) {
+    const retry = await chat(
+      [
+        ...messages,
+        { role: "assistant", content: text.slice(0, 4000) },
+        { role: "user", content: `That reply was not valid JSON (${(err as Error).message.slice(0, 120)}). Reply again with one complete JSON object only. Keep it shorter: concise statements, compact SQL.` },
+      ],
+      { maxTokens: 8192, ...opts, json: true },
+    );
+    return parseJsonReply<T>(retry);
+  }
 }

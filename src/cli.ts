@@ -20,8 +20,9 @@ if (!question) {
   process.exit(1);
 }
 
-const llm: Llm = (messages) => chatJson(messages, { maxTokens: 4096 });
-const memory = new FindingsMemory({ dir: process.env.HMEM_DIR ?? "data/memory" });
+const llm: Llm = (messages) => chatJson(messages);
+// Sample findings must never mix with real ones.
+const memory = new FindingsMemory({ dir: offline ? "data/memory/offline" : process.env.HMEM_DIR ?? "data/memory" });
 if (offline) console.log("OFFLINE: sample rows, not real data\n");
 
 const brief = await investigate({

@@ -23,7 +23,9 @@ const SAMPLE: Record<string, Record<string, unknown>[]> = {
 
 export async function runOffline(sql: string): Promise<QueryRun> {
   const base = { id: queryId(sql), sql: sql.trim(), at: new Date().toISOString(), ms: 1 };
-  const table = Object.keys(SAMPLE).find((t) => new RegExp(`\\.${t}\\b`, "i").test(sql));
+  // Prefer a fact table over the company lookup when a query joins both.
+  const named = Object.keys(SAMPLE).filter((t) => new RegExp(`\\.${t}\\b`, "i").test(sql));
+  const table = named.find((t) => t !== "company") ?? named[0];
   if (!table) return { ...base, ok: false, columns: [], rows: [], error: "offline: no catalog table in query" };
   const rows = SAMPLE[table];
   return { ...base, ok: true, rows, columns: Object.keys(rows[0]) };

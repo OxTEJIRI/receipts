@@ -50,7 +50,7 @@ describe("investigate", () => {
     const { llm, calls } = scriptedLlm();
     const brief = await investigate({ question: "Why did revenue rise?", entity: "SAMPLE Utility Co", llm, run: runOffline, memory });
 
-    expect(calls).toEqual(["plan", "judge", "repair", "brief"]);
+    expect(calls).toEqual(["plan", "repair", "judge", "brief"]);
     expect(brief.hypotheses[0].verdict).toBe("supported");
     expect(brief.hypotheses[1].verdict).toBe("inconclusive");
     expect(brief.answer[0].check.verified).toBe(true);

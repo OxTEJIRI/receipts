@@ -26,7 +26,8 @@ const SCALE: Record<string, number> = {
 
 export function extractNumbers(text: string): NumberCheck[] {
   const out: NumberCheck[] = [];
-  const re = /(\$)?(-?\d[\d,]*(?:\.(\d+))?)\s*(%|thousand|million|billion|trillion|bn|mn|[kmb](?![a-z]))?/gi;
+  // Digits glued to letters or underscores are parts of IDs (q_0fed10e232), not numbers.
+  const re = /(?<![A-Za-z_\d.])(\$)?(-?\d[\d,]*(?:\.(\d+))?)\s*(%|thousand|million|billion|trillion|bn|mn|[kmb](?![a-z]))?(?![A-Za-z_\d])/gi;
   for (const m of text.matchAll(re)) {
     const [whole, dollar, digits, decimals, unitRaw] = m;
     const unit = unitRaw?.toLowerCase();

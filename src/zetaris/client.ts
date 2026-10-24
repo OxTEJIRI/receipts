@@ -91,7 +91,9 @@ export function normaliseResult(raw: unknown): { columns: string[]; rows: Record
 // query is evidence too ("this source could not answer").
 export async function runQuery(sql: string): Promise<QueryRun> {
   const started = Date.now();
-  const base = { id: queryId(sql), sql: sql.trim(), at: new Date().toISOString() };
+  // Zetaris takes one statement per call; models often end SQL with ";".
+  const clean = sql.trim().replace(/;+\s*$/, "");
+  const base = { id: queryId(clean), sql: clean, at: new Date().toISOString() };
   try {
     const limit = Number(process.env.ZETARIS_QUERY_LIMIT ?? "1000");
     const engineId = process.env.ZETARIS_ENGINE_ID;
