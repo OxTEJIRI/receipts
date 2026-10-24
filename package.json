@@ -15,6 +15,7 @@
     "start": "tsx src/server.ts",
     "start:offline": "tsx src/server.ts --offline",
     "zetaris:check": "tsx src/zetaris/check.ts",
+    "zetaris:setup": "tsx src/zetaris/setup.ts",
     "nemotron:check": "tsx src/llm/check.ts",
     "typecheck": "tsc --noEmit"
   },
