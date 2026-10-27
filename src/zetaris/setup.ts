@@ -25,6 +25,7 @@ interface Step {
   name: string;
   sql: string;
   okIf?: RegExp; // error text that means "already done"
+  optional?: boolean; // a speed-up only; carry on if it fails
 }
 
 const EXISTS = /already exists|AlreadyExists|duplicate/i;
@@ -32,6 +33,8 @@ const EXISTS = /already exists|AlreadyExists|duplicate/i;
 export function steps(): Step[] {
   if (!UA) throw new Error('Set ZETARIS_USER_AGENT in .env.local, e.g. "Receipts you@example.com" (SEC requires a contact).');
   return [
+    // A fresh local install has no lightning.metastore parent yet.
+    { name: "parent namespace", sql: `CREATE NAMESPACE IF NOT EXISTS ${NS_ROOT.split(".").slice(0, 2).join(".")}` },
     { name: "namespace", sql: `CREATE NAMESPACE IF NOT EXISTS ${NS_ROOT}` },
 
     { name: "SEC database", sql: `CREATE LIGHTNING DATABASE SEC_DATA DESCRIBE BY "SEC EDGAR company facts REST source"`, okIf: EXISTS },
@@ -75,7 +78,7 @@ export function steps(): Step[] {
   inferSchema "false", header "false", ${S3_NOAA}
 )`,
     })),
-    ...STATIONS.map((s) => ({ name: `cache NOAA ${s.state}`, sql: `CACHE TABLE NOAA_GHCN_S3.${s.table}` })),
+    ...STATIONS.map((s) => ({ name: `cache NOAA ${s.state}`, sql: `CACHE TABLE NOAA_GHCN_S3.${s.table}`, optional: true })),
 
     {
       name: "compile USL model",
@@ -154,7 +157,7 @@ SELECT COALESCE(CONCAT(state, '_', SUBSTR(obs_date, 1, 4)), '') AS weather_perio
        COALESCE(station_id, '') AS station_id, COALESCE(station_name, '') AS station_name,
        CAST(CONCAT(SUBSTR(MIN(obs_date),1,4),'-',SUBSTR(MIN(obs_date),5,2),'-',SUBSTR(MIN(obs_date),7,2)) AS DATE) AS period_start,
        CAST(CONCAT(SUBSTR(MAX(obs_date),1,4),'-',SUBSTR(MAX(obs_date),5,2),'-',SUBSTR(MAX(obs_date),7,2)) AS DATE) AS period_end,
-       COUNT(DISTINCT obs_date) AS observed_days, COUNT(*) AS valid_measurement_count,
+       CAST(COUNT(DISTINCT obs_date) AS INT) AS observed_days, CAST(COUNT(*) AS INT) AS valid_measurement_count,
        AVG(CASE WHEN element='TMAX' THEN CAST(data_value AS DOUBLE)/10.0 END) AS mean_daily_tmax_c,
        AVG(CASE WHEN element='TMIN' THEN CAST(data_value AS DOUBLE)/10.0 END) AS mean_daily_tmin_c,
        AVG(CASE WHEN element='PRCP' THEN CAST(data_value AS DOUBLE)/10.0 END) AS mean_daily_precip_mm
@@ -172,7 +175,7 @@ SELECT COALESCE(CONCAT(m.central_index_key, '_', CAST(YEAR(g.report_date) AS STR
        COALESCE(CONCAT(m.central_index_key, '_', CAST(YEAR(g.report_date) AS STRING)), '') AS revenue_year_key,
        CONCAT(g.state, '_', CAST(YEAR(g.report_date) AS STRING)) AS weather_period_key,
        COALESCE(m.utility_id_eia, 0) AS utility_id_eia, COALESCE(YEAR(g.report_date), 0) AS report_year,
-       COALESCE(g.state, '') AS state, COUNT(*) AS generator_count,
+       COALESCE(g.state, '') AS state, CAST(COUNT(*) AS INT) AS generator_count,
        SUM(g.net_generation_mwh) AS net_generation_mwh, SUM(g.capacity_mw) AS installed_capacity_mw
 FROM PUDL_S3.pudl_sec10k_utility_matches m
 JOIN PUDL_S3.pudl_eia_yearly_generators g ON m.utility_id_eia = g.utility_id_eia
@@ -200,9 +203,14 @@ if (process.argv[1]?.endsWith("setup.ts")) {
   }
   for (const [i, s] of plan.entries()) {
     if (i + 1 < from) continue;
-    const r = await runQuery(s.sql);
+    // Caching and activation scan whole S3 files; give them up to 15 minutes.
+    const r = await runQuery(s.sql, { timeoutMs: 15 * 60_000 });
     const done = r.ok || (s.okIf && r.error && s.okIf.test(r.error));
     console.log(`${done ? "OK  " : "FAIL"} ${String(i + 1).padStart(2)}. ${s.name} (${(r.ms / 1000).toFixed(1)} s)${r.ok ? "" : done ? " already exists" : `\n      ${r.error}`}`);
+    if (!done && s.optional) {
+      console.log("      optional step, continuing");
+      continue;
+    }
     if (!done) {
       console.log(`\nStopped. Fix the error above, then resume with: npm run zetaris:setup -- --apply --from ${i + 1}`);
       process.exit(1);
