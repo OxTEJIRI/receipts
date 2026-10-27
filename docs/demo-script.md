@@ -6,8 +6,9 @@ Or use OBS if you have it. Record the browser window at http://localhost:4321 on
 Before recording:
 - Zetaris running (Docker Desktop open), app running (`npm start` in the receipts folder).
 - Browser zoom 100%, close other tabs, full-screen the window (F11).
-- Do one warm-up question first so memory has findings; then **restart nothing**.
-- Live queries are slow (about 30 s each). Record everything, then **speed up the waiting parts** (2x-8x) when editing, or cut them. Say "sped up" in a caption.
+- Ask Claude to **clear the agent's memory** right before you record, so the first run starts fresh and the second run shows memory reuse.
+- A full run takes about **5 minutes**: Zetaris queries are ~2 s each (cached), but each NVIDIA Nemotron step takes 30-90 s. Record everything, then **speed up the waiting parts** (4x-16x) when editing, or cut them. Add a small "sped up" caption.
+- In the real run, 3 of 4 sentences were verified. The 4th was flagged because it quoted the "300 observed days" rule, which is not a number in the rows. **Point at it**: it shows the checker works.
 
 ---
 
