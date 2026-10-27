@@ -13,6 +13,7 @@ export interface Table {
   name: string;          // fully qualified Lightning name
   source: "SEC EDGAR" | "PUDL (EIA)" | "NOAA GHCN-Daily";
   description: string;
+  caveat?: string; // what the data does NOT support; shown to planner, judge and writer
   columns: Column[];
 }
 
@@ -47,6 +48,7 @@ export const CATALOG: Table[] = [
     name: `${NS}.utility_state_year`,
     source: "PUDL (EIA)",
     description: "Generator fleet per utility, state and year from EIA-860/923 via PUDL, matched to the SEC filer.",
+    caveat: "Covers only the generators PUDL's probabilistic SEC-to-EIA crosswalk matched to this filer, usually a small subset of the company's real fleet. Call it 'matched generators', never the company total, and never divide company revenue by it (revenue per MWh from this table is meaningless).",
     columns: [
       { name: "utility_state_year_key", type: "varchar(40)" },
       { name: "cik", type: "varchar(10)" },
@@ -63,7 +65,8 @@ export const CATALOG: Table[] = [
   {
     name: `${NS}.weather_period`,
     source: "NOAA GHCN-Daily",
-    description: "Weather summary per state from one airport station per state. Coverage can be partial; check observed_days.",
+    description: "Weather summary per state and year from one airport station per state.",
+    caveat: "A year with observed_days under 300 is a partial year (2025 may cover only January-February, which is naturally colder). Never compare a partial year with a full year: a weather hypothesis that needs that comparison is inconclusive, not refuted.",
     columns: [
       { name: "weather_period_key", type: "varchar(40)" },
       { name: "state", type: "varchar(2)" },
@@ -95,7 +98,12 @@ export function catalogPrompt(tables: Table[] = CATALOG): string {
   return tables
     .map((t) =>
       `TABLE ${t.name}  -- source: ${t.source}. ${t.description}\n` +
+      (t.caveat ? `  CAVEAT: ${t.caveat}\n` : "") +
       t.columns.map((c) => `  ${c.name} ${c.type}${c.note ? `  -- ${c.note}` : ""}`).join("\n"),
     )
     .join("\n\n");
+}
+
+export function caveatsPrompt(tables: Table[] = CATALOG): string {
+  return tables.filter((t) => t.caveat).map((t) => `- ${t.name.split(".").pop()}: ${t.caveat}`).join("\n");
 }

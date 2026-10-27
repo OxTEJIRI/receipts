@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 import type { QueryRun } from "../zetaris/client.ts";
 import type { ChatMessage } from "../llm/nemotron.ts";
 import type { FindingsMemory, Recalled, Verdict } from "../memory/findings.ts";
-import { catalogPrompt, cikFor } from "./catalog.ts";
+import { caveatsPrompt, catalogPrompt, cikFor } from "./catalog.ts";
 import { queryId } from "../zetaris/client.ts";
 import { checkSentence, type SentenceCheck } from "./verify.ts";
 
@@ -74,7 +74,9 @@ export interface InvestigateOptions {
 const SYSTEM = `You are Receipts, an investigator that explains why a business metric moved.
 You may only use the tables listed. Write Spark-compatible Lightning SQL, one SELECT per string, no DDL or writes.
 Use fully qualified table names exactly as listed. Keep result sets small (aggregate, LIMIT 50).
-Never state a cause you have not tested. Reply with JSON only.`;
+Never state a cause you have not tested. A verdict needs a like-for-like comparison: check coverage columns and table caveats first, and call it inconclusive when periods or scopes don't match.
+Write numbers the way an analyst would, rounded to at most 4 significant figures ($16.51 billion, 4,370 MW, 24.1°C), never raw digits like 4319.999999999999.
+Reply with JSON only.`;
 
 interface PlanReply {
   hypotheses: { id: string; statement: string; test: string; sql: string[]; reuse_memory_id?: string }[];
@@ -184,7 +186,7 @@ export async function investigate(opts: InvestigateOptions): Promise<Brief> {
         { role: "system", content: SYSTEM },
         {
           role: "user",
-          content: `Hypothesis: ${h.statement}\nTest: ${h.test}\n\nResults:\n${hRuns.map(rowsForLlm).join("\n\n")}\n\n` +
+          content: `Hypothesis: ${h.statement}\nTest: ${h.test}\n\nData caveats:\n${caveatsPrompt()}\n\nResults:\n${hRuns.map(rowsForLlm).join("\n\n")}\n\n` +
             `Judge only from these rows. verdict is supported, refuted or inconclusive. claim is one plain sentence with the key numbers exactly as they appear in the rows. ` +
             `cites lists the query IDs the claim relies on.\nJSON: {"verdict":"...","confidence":0.0,"claim":"...","cites":["q_..."]}`,
         },
@@ -219,7 +221,7 @@ export async function investigate(opts: InvestigateOptions): Promise<Brief> {
     { role: "system", content: SYSTEM },
     {
       role: "user",
-      content: `Question: ${question}\nEntity: ${entity}\n\nVerdicts:\n` +
+      content: `Question: ${question}\nEntity: ${entity}\n\nData caveats:\n${caveatsPrompt()}\n\nVerdicts:\n` +
         hypotheses.map((h) => `${h.id} [${h.verdict}, ${h.confidence.toFixed(2)}] ${h.statement}\n  claim: ${h.claim}\n  cites: ${(h.fromMemory ? [h.fromMemory] : h.queryIds).join(", ")}`).join("\n") +
         `\n\nEvidence:\n${[...runs.values()].filter((r) => r.ok).map(rowsForLlm).join("\n\n")}\n\n` +
         `Write a 3-6 sentence answer. Lead with the best-supported explanation, then what was ruled out. ` +

@@ -185,6 +185,13 @@ GROUP BY m.central_index_key, m.utility_id_eia, YEAR(g.report_date), g.state`,
   ];
 }
 
+// Caching the model cuts live queries from ~30-50 s to ~2 s on a laptop, and
+// means an investigation doesn't depend on SEC answering at that moment.
+export function cacheSteps(): Step[] {
+  return ["SEC_DATA.dominion_revenue_facts", ...["company", "revenue_year", "utility_state_year", "weather_period"].map((t) => `${NS}.${t}`)]
+    .map((t) => ({ name: `cache ${t.split(".").pop()}`, sql: `CACHE TABLE ${t}`, optional: true }));
+}
+
 // Read-only checks that the model answers, run after setup.
 export const VERIFY = [
   `SELECT report_year, revenue_usd, accession_number FROM ${NS}.revenue_year ORDER BY report_year`,
@@ -195,7 +202,7 @@ export const VERIFY = [
 if (process.argv[1]?.endsWith("setup.ts")) {
   const apply = process.argv.includes("--apply");
   const from = Number(process.argv[process.argv.indexOf("--from") + 1] || 1);
-  const plan = steps();
+  const plan = [...steps(), ...cacheSteps()];
   if (!apply) {
     console.log("Dry run. Re-run with --apply to execute.\n");
     plan.forEach((s, i) => console.log(`${String(i + 1).padStart(2)}. ${s.name}`));
